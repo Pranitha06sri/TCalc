@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { WorkspaceScanResult, WorkspaceFileInfo } from "@wma/core";
+import { escapeMarkdownText, markdownCode, type WorkspaceScanResult, type WorkspaceFileInfo, type TokenDriftReport } from "@wma/core";
 import { analyzeTokenDrift, formatDriftMarkdown } from "../src/index.js";
 
 function makeFile(
@@ -188,6 +188,64 @@ describe("analyzeTokenDrift", () => {
     expect(md).toContain("## Directory Breakdown");
     expect(md).toContain("## Policy Violations");
     expect(md).toContain("src/index.ts");
+    expect(md).toContain("| `src/index.ts` | 1,000 | 1,800 | +800 | +80% | — |");
+    expect(md).toContain("| `src` | 1,000 | 2,200 | +1,200 | +120% | +1 |");
+  });
+
+  it("escapes paths, directories, risk flags, and violations in drift Markdown", () => {
+    const path = "src/fi|le`\\name\n.ts";
+    const directory = "src/di|r`\\name\nmore";
+    const riskFlag = "se|cret`\\flag\nmore";
+    const violation = "Unexpected | ` \\ value\nmore";
+    const report: TokenDriftReport = {
+      baselineTotalTokens: 100,
+      currentTotalTokens: 200,
+      netTokenDelta: 100,
+      netPercentChange: 100,
+      filesAdded: 1,
+      filesRemoved: 1,
+      filesModified: 0,
+      filesUnchanged: 0,
+      topGrowingFiles: [{
+        relativePath: path,
+        status: "added",
+        baselineTokens: 0,
+        currentTokens: 200,
+        tokenDelta: 200,
+        percentChange: 100,
+        riskFlagsAdded: [riskFlag],
+        riskFlagsRemoved: [],
+      }],
+      topShrinkingFiles: [{
+        relativePath: path,
+        status: "removed",
+        baselineTokens: 100,
+        currentTokens: 0,
+        tokenDelta: -100,
+        percentChange: -100,
+        riskFlagsAdded: [],
+        riskFlagsRemoved: [],
+      }],
+      directoryDrifts: [{
+        directory,
+        baselineTokens: 100,
+        currentTokens: 200,
+        tokenDelta: 100,
+        percentChange: 100,
+        fileCountDelta: 0,
+      }],
+      violations: [violation],
+      passed: false,
+      generatedAt: "2026-10-13T00:00:00.000Z",
+    };
+
+    const md = formatDriftMarkdown(report);
+
+    expect(md).toContain(`| ${markdownCode(path)} | 0 | 200 | +200 | +100% | +(${escapeMarkdownText(riskFlag)}) |`);
+    expect(md).toContain(`| ${markdownCode(path)} | 100 | 0 | -100 | -100% |`);
+    expect(md).toContain(`| ${markdownCode(directory)} | 100 | 200 | +100 | +100% | 0 |`);
+    expect(md).toContain(`- ⚠️ ${escapeMarkdownText(violation)}`);
+    expect(md).not.toContain(`\`${path}\``);
   });
 
   it("handles empty workspaces safely without division by zero", () => {
