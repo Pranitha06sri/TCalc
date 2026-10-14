@@ -81,7 +81,7 @@ function createMockScanResult(): WorkspaceScanResult {
         fileCount: 3,
         totalBytes: 6000,
         totalTokens: 1500,
-        percentage: 100,
+        percentage: 1,
       },
     ],
     warnings: [],
